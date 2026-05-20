@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+
 class LightNode {
     outerHTML() {
         return '';
@@ -20,6 +23,74 @@ class LightTextNode extends LightNode {
 
     innerHTML() {
         return this.text;
+    }
+}
+
+class FileSystemImageLoadingStrategy {
+    load(href) {
+        const absolutePath = path.isAbsolute(href) ? href : path.join(__dirname, '..', href);
+        const imageBuffer = fs.readFileSync(absolutePath);
+        const extension = path.extname(absolutePath).replace('.', '') || 'png';
+        const mimeType = extension === 'svg' ? 'svg+xml' : extension;
+
+        return {
+            strategyName: 'file system',
+            source: 'data:image/' + mimeType + ';base64,' + imageBuffer.toString('base64')
+        };
+    }
+}
+
+class NetworkImageLoadingStrategy {
+    load(href) {
+        return {
+            strategyName: 'network',
+            source: href
+        };
+    }
+}
+
+class ImageLoadingStrategyFactory {
+    static create(href) {
+        if (/^https?:\/\//.test(href)) {
+            return new NetworkImageLoadingStrategy();
+        }
+
+        return new FileSystemImageLoadingStrategy();
+    }
+}
+
+function escapeAttribute(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+class LightImageNode extends LightNode {
+    constructor(href, altText) {
+        super();
+        this.href = href;
+        this.altText = altText || '';
+        this.strategy = ImageLoadingStrategyFactory.create(href);
+        this.loadedImage = null;
+    }
+
+    load() {
+        this.loadedImage = this.strategy.load(this.href);
+        return this.loadedImage;
+    }
+
+    outerHTML() {
+        if (!this.loadedImage) {
+            this.load();
+        }
+
+        return '<img src="' + escapeAttribute(this.loadedImage.source) + '" alt="' + escapeAttribute(this.altText) + '"/>';
+    }
+
+    innerHTML() {
+        return '';
     }
 }
 
@@ -95,9 +166,14 @@ function runCompositeDemo() {
     list.addChild(secondItem);
     list.addChild(thirdItem);
 
+    const localImage = new LightImageNode('data/local-image.svg', 'Local LightHTML image');
+    const networkImage = new LightImageNode('https://example.com/light-html-image.png', 'Network LightHTML image');
+
     div.addChild(title);
     div.addChild(paragraph);
     div.addChild(list);
+    div.addChild(localImage);
+    div.addChild(networkImage);
 
     console.log('Повний HTML:');
     console.log(div.outerHTML());
@@ -106,12 +182,22 @@ function runCompositeDemo() {
     console.log(div.innerHTML());
 
     console.log('\nКількість дочірніх елементів:', div.getChildrenCount());
+
+    console.log('\nДемо Image Strategy:');
+    console.log('Локальне зображення:', localImage.load().strategyName);
+    console.log(localImage.outerHTML());
+    console.log('Мережеве зображення:', networkImage.load().strategyName);
+    console.log(networkImage.outerHTML());
 }
 
 module.exports = {
     LightNode,
     LightTextNode,
     LightElementNode,
+    LightImageNode,
+    FileSystemImageLoadingStrategy,
+    NetworkImageLoadingStrategy,
+    ImageLoadingStrategyFactory,
     runCompositeDemo,
     run: runCompositeDemo
 };
