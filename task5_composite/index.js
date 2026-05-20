@@ -31,6 +31,7 @@ class LightElementNode extends LightNode {
         this.closingType = closingType;
         this.cssClasses = [];
         this.children = [];
+        this.eventListeners = {};
     }
 
     addChild(node) {
@@ -39,6 +40,40 @@ class LightElementNode extends LightNode {
 
     addClass(className) {
         this.cssClasses.push(className);
+    }
+
+    addEventListener(eventName, listener) {
+        if (!this.eventListeners[eventName]) {
+            this.eventListeners[eventName] = [];
+        }
+
+        this.eventListeners[eventName].push(listener);
+    }
+
+    removeEventListener(eventName, listener) {
+        if (!this.eventListeners[eventName]) {
+            return;
+        }
+
+        this.eventListeners[eventName] = this.eventListeners[eventName].filter(function (currentListener) {
+            return currentListener !== listener;
+        });
+    }
+
+    dispatchEvent(eventName, eventData) {
+        if (!this.eventListeners[eventName]) {
+            return;
+        }
+
+        const event = {
+            type: eventName,
+            target: this,
+            data: eventData || {}
+        };
+
+        for (const listener of this.eventListeners[eventName]) {
+            listener(event);
+        }
     }
 
     getChildrenCount() {
@@ -106,6 +141,29 @@ function runCompositeDemo() {
     console.log(div.innerHTML());
 
     console.log('\nКількість дочірніх елементів:', div.getChildrenCount());
+
+    div.addEventListener('click', function (event) {
+        console.log('\nEvent:', event.type);
+        console.log('Tag:', event.target.tagName);
+        console.log('Повідомлення:', event.data.message);
+    });
+
+    title.addEventListener('mouseover', function (event) {
+        console.log('\nEvent:', event.type);
+        console.log('Tag:', event.target.tagName);
+        console.log('Повідомлення:', event.data.message);
+    });
+
+    const removedListener = function () {
+        console.log('Цей listener не повинен викликатися.');
+    };
+
+    div.addEventListener('click', removedListener);
+    div.removeEventListener('click', removedListener);
+
+    console.log('\nДемо EventListener:');
+    div.dispatchEvent('click', { message: 'Користувач натиснув на div' });
+    title.dispatchEvent('mouseover', { message: 'Курсор наведено на h2' });
 }
 
 module.exports = {
